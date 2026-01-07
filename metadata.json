@@ -1,0 +1,5 @@
+{
+  "name": "Credit Card Expense Tracker",
+  "description": "A visualization tool for analyzing monthly credit card expenses and breakdown from CSV data.",
+  "requestFramePermissions": []
+}
