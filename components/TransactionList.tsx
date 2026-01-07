@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Search, Edit2, Check, X, Trash2, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Edit2, Check, X, Trash2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ExpenseRecord } from '../types';
-import { formatCurrency, isValidDate } from '../services/dataProcessor';
+import { formatCurrency, isValidDate, getDateValue } from '../services/dataProcessor';
 
 interface TransactionListProps {
   data: ExpenseRecord[];
@@ -10,16 +10,73 @@ interface TransactionListProps {
   onDelete: (id: string) => void;
 }
 
+type SortConfig = {
+  key: string;
+  direction: 'asc' | 'desc';
+};
+
 export const TransactionList: React.FC<TransactionListProps> = ({ data, bankNames, onUpdate, onDelete }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ExpenseRecord | null>(null);
   const [dateError, setDateError] = useState<boolean>(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
-  const filteredData = data.filter(item => 
-    item.date.includes(searchTerm) || 
-    item.note.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtering
+  const filteredData = useMemo(() => {
+    return data.filter(item => 
+      item.date.includes(searchTerm) || 
+      item.note.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [data, searchTerm]);
+
+  // Sorting
+  const sortedData = useMemo(() => {
+    return [...filteredData].sort((a, b) => {
+      let valA: any = '';
+      let valB: any = '';
+
+      // Determine values based on sort key
+      if (sortConfig.key === 'date') {
+        valA = getDateValue(a.date);
+        valB = getDateValue(b.date);
+      } else if (sortConfig.key === 'total') {
+        valA = a.total;
+        valB = b.total;
+      } else if (sortConfig.key.startsWith('bank_')) {
+        const bankName = sortConfig.key.replace('bank_', '');
+        valA = a.banks[bankName] || 0;
+        valB = b.banks[bankName] || 0;
+      } else if (['family', 'rent', 'extra', 'periodic'].includes(sortConfig.key)) {
+        // @ts-ignore
+        valA = a[sortConfig.key];
+        // @ts-ignore
+        valB = b[sortConfig.key];
+      } else {
+        // default fallback
+        valA = 0;
+        valB = 0;
+      }
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredData, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="text-gray-300" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp size={12} className="text-blue-600" /> 
+      : <ArrowDown size={12} className="text-blue-600" />;
+  };
 
   const handleEditClick = (record: ExpenseRecord) => {
     setEditingId(record.id);
@@ -45,6 +102,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ data, bankName
       setDateError(false);
     }
   };
+
+  const handleDeleteClick = (id: string) => {
+    // Ensuring the event doesn't propagate weirdly if nested
+    onDelete(id);
+  }
 
   const handleDateChange = (value: string) => {
     if (!editForm) return;
@@ -94,20 +156,47 @@ export const TransactionList: React.FC<TransactionListProps> = ({ data, bankName
           <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200 uppercase tracking-wider text-xs">
             <tr>
               <th className="px-4 py-3 w-20 text-center">操作</th>
-              <th className="px-2 py-3 whitespace-nowrap min-w-[80px]">日期</th>
+              
+              <th 
+                className="px-2 py-3 whitespace-nowrap min-w-[80px] cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => handleSort('date')}
+              >
+                <div className="flex items-center gap-1">日期 {getSortIcon('date')}</div>
+              </th>
+
               {/* Dynamic Bank Columns */}
               {bankNames.map(bank => (
-                <th key={bank} className="px-2 py-3 text-right whitespace-nowrap min-w-[90px] text-gray-700">{bank}</th>
+                <th 
+                  key={bank} 
+                  className="px-2 py-3 text-right whitespace-nowrap min-w-[90px] text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort(`bank_${bank}`)}
+                >
+                  <div className="flex items-center justify-end gap-1">{bank} {getSortIcon(`bank_${bank}`)}</div>
+                </th>
               ))}
-              <th className="px-2 py-3 text-right font-bold whitespace-nowrap min-w-[100px]">總消費</th>
-              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px]">家用</th>
-              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px]">房租</th>
-              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px]">額外</th>
+              
+              <th 
+                className="px-2 py-3 text-right font-bold whitespace-nowrap min-w-[100px] cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => handleSort('total')}
+              >
+                <div className="flex items-center justify-end gap-1">總消費 {getSortIcon('total')}</div>
+              </th>
+              
+              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px] cursor-pointer hover:bg-gray-100" onClick={() => handleSort('family')}>
+                <div className="flex items-center justify-end gap-1">家用 {getSortIcon('family')}</div>
+              </th>
+              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px] cursor-pointer hover:bg-gray-100" onClick={() => handleSort('rent')}>
+                 <div className="flex items-center justify-end gap-1">房租 {getSortIcon('rent')}</div>
+              </th>
+              <th className="px-2 py-3 text-right text-gray-500 whitespace-nowrap min-w-[80px] cursor-pointer hover:bg-gray-100" onClick={() => handleSort('extra')}>
+                 <div className="flex items-center justify-end gap-1">額外 {getSortIcon('extra')}</div>
+              </th>
+              
               <th className="px-4 py-3 min-w-[200px]">備註</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredData.map((row) => {
+            {sortedData.map((row) => {
               const isEditing = editingId === row.id;
               
               return (
@@ -133,7 +222,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ data, bankName
                         <button onClick={() => handleEditClick(row)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all" title="編輯">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => onDelete(row.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" title="刪除">
+                        <button 
+                          onClick={() => handleDeleteClick(row.id)} 
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" 
+                          title="刪除"
+                        >
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -206,12 +299,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ data, bankName
   );
 };
 
-const EditableMoneyCell = ({ isEditing, value, onChange, className = '' }: { 
-  isEditing: boolean, 
-  value: number | undefined, 
-  onChange: (val: number) => void,
-  className?: string 
-}) => {
+interface EditableMoneyCellProps {
+  isEditing: boolean;
+  value: number | undefined;
+  onChange: (val: number) => void;
+  className?: string;
+}
+
+const EditableMoneyCell: React.FC<EditableMoneyCellProps> = ({ isEditing, value, onChange, className = '' }) => {
   return (
     <td className={`px-2 py-3 text-right font-mono ${className}`}>
       {isEditing ? (

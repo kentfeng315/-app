@@ -5,6 +5,7 @@ import { processCSV } from './services/dataProcessor';
 import { INITIAL_CSV_DATA, INITIAL_BANK_NAMES } from './constants';
 import { Dashboard } from './components/Dashboard';
 import { TransactionList } from './components/TransactionList';
+import { RecordFormModal } from './components/RecordFormModal';
 
 type Tab = 'dashboard' | 'list';
 
@@ -12,6 +13,7 @@ export default function App() {
   const [data, setData] = useState<ExpenseRecord[]>(INITIAL_CSV_DATA);
   const [bankNames, setBankNames] = useState<string[]>(INITIAL_BANK_NAMES);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -34,27 +36,8 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleCreateRecord = () => {
-    const newId = Math.random().toString(36).substring(2, 9);
-    // Initialize banks with 0
-    const initialBanks: {[key: string]: number} = {};
-    bankNames.forEach(name => initialBanks[name] = 0);
-
-    const newRecord: ExpenseRecord = {
-      id: newId,
-      date: '', // Invalid initially, user must edit
-      banks: initialBanks,
-      total: 0,
-      family: 0,
-      rent: 0,
-      periodic: 0,
-      extra: 0,
-      note: ''
-    };
-    
-    // Add to top
+  const handleSaveNewRecord = (newRecord: ExpenseRecord) => {
     setData(prev => [newRecord, ...prev]);
-    // Switch to list view so user can edit it
     setActiveTab('list');
   };
 
@@ -66,7 +49,10 @@ export default function App() {
 
   const handleDeleteRecord = (id: string) => {
     if (window.confirm('確定要刪除這筆紀錄嗎？')) {
-      setData(prevData => prevData.filter(item => item.id !== id));
+      setData(prevData => {
+        const newData = prevData.filter(item => item.id !== id);
+        return newData;
+      });
     }
   };
 
@@ -141,7 +127,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
              <button 
-              onClick={handleCreateRecord}
+              onClick={() => setIsModalOpen(true)}
               className="bg-white hover:bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl border border-blue-200 shadow-sm flex items-center gap-2 transition-all hover:shadow-md active:scale-95"
              >
                <Plus size={18} />
@@ -169,6 +155,14 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Modals */}
+      <RecordFormModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveNewRecord}
+        bankNames={bankNames}
+      />
     </div>
   );
 }

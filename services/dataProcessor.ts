@@ -17,6 +17,20 @@ export const isValidDate = (dateStr: string): boolean => {
   return regex.test(dateStr);
 };
 
+export const getDateValue = (dateStr: string): number => {
+  if (!dateStr) return 0;
+  const parts = dateStr.split('/');
+  if (parts.length !== 2) return 0;
+  
+  let year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  
+  // Handle 2-digit years (assume 20xx)
+  if (year < 100) year += 2000;
+  
+  return year * 100 + month;
+};
+
 export const processCSV = (csvText: string): ProcessedData => {
   const lines = csvText.split('\n');
   const newData: ExpenseRecord[] = [];
