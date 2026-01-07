@@ -3,19 +3,37 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, BarChart, Bar 
 } from 'recharts';
-import { TrendingUp, CreditCard } from 'lucide-react';
+import { TrendingUp, CreditCard, DollarSign, Calendar } from 'lucide-react';
 import { ExpenseRecord, Stats } from '../types';
-import { COLORS } from '../constants';
+import { COLORS, getBankColor } from '../constants';
 import { StatCard } from './StatCard';
 import { formatCurrency } from '../services/dataProcessor';
-import { DollarSign, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   data: ExpenseRecord[];
   stats: Stats;
+  bankNames: string[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ data, stats, bankNames }) => {
+  // Find the bank with the highest total spent
+  let maxBankName = '-';
+  let maxBankValue = 0;
+  
+  Object.entries(stats.bankTotals).forEach(([name, value]) => {
+    const val = value as number;
+    if (val > maxBankValue) {
+      maxBankValue = val;
+      maxBankName = name;
+    }
+  });
+
+  // Prepare data for Pie Chart
+  const pieData = bankNames.map((name) => ({
+    name,
+    value: stats.bankTotals[name] || 0
+  })).filter(item => item.value > 0);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Key Metrics Cards */}
@@ -41,10 +59,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
         />
         <StatCard 
           title="最高佔比銀行" 
-          value="台新銀行" 
-          subValue={formatCurrency(stats.bankTotals.taishin)}
+          value={maxBankName} 
+          subValue={formatCurrency(maxBankValue)}
           icon={<CreditCard className="text-purple-500" />} 
-          trend={`${stats.totalSpent ? ((stats.bankTotals.taishin / stats.totalSpent) * 100).toFixed(1) : 0}% 佔比`}
+          trend={`${stats.totalSpent ? ((maxBankValue / stats.totalSpent) * 100).toFixed(1) : 0}% 佔比`}
         />
       </div>
 
@@ -85,12 +103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={[
-                    { name: '中信', value: stats.bankTotals.ct },
-                    { name: '國泰', value: stats.bankTotals.cathay },
-                    { name: '台新', value: stats.bankTotals.taishin },
-                    { name: '兆豐', value: stats.bankTotals.mega },
-                  ]}
+                  data={pieData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -98,10 +111,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  <Cell fill={COLORS.ct} />
-                  <Cell fill={COLORS.cathay} />
-                  <Cell fill={COLORS.taishin} />
-                  <Cell fill={COLORS.mega} />
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getBankColor(index)} />
+                  ))}
                 </Pie>
                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
                 <Legend verticalAlign="bottom" height={36}/>
@@ -132,10 +144,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
                   cursor={{fill: 'rgba(0,0,0,0.05)'}}
                 />
                 <Legend />
-                <Bar dataKey="ct_amount" name="中信" stackId="a" fill={COLORS.ct} />
-                <Bar dataKey="cathay_amount" name="國泰" stackId="a" fill={COLORS.cathay} />
-                <Bar dataKey="taishin_amount" name="台新" stackId="a" fill={COLORS.taishin} />
-                <Bar dataKey="mega_amount" name="兆豐" stackId="a" fill={COLORS.mega} />
+                {bankNames.map((bank, index) => (
+                   <Bar 
+                    key={bank}
+                    dataKey={`banks.${bank}`} 
+                    name={bank} 
+                    stackId="a" 
+                    fill={getBankColor(index)} 
+                  />
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -153,8 +170,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, stats }) => {
                 <Legend />
                 <Bar dataKey="rent" name="房租" fill={COLORS.rent} radius={[4, 4, 0, 0]}/>
                 <Bar dataKey="family" name="家用" fill={COLORS.family} radius={[4, 4, 0, 0]}/>
-                <Bar dataKey="extra" name="額外" fill={COLORS.mega} radius={[4, 4, 0, 0]}/>
-                <Bar dataKey="periodic" name="定期" fill={COLORS.cathay} radius={[4, 4, 0, 0]}/>
+                <Bar dataKey="extra" name="額外" fill={COLORS.bg === '#f8f9fa' ? '#f4a261' : COLORS.bg} radius={[4, 4, 0, 0]}/> {/* Fallback color */}
+                <Bar dataKey="periodic" name="定期" fill={'#2a9d8f'} radius={[4, 4, 0, 0]}/>
               </BarChart>
             </ResponsiveContainer>
           </div>

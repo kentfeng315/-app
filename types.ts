@@ -1,9 +1,7 @@
 export interface ExpenseRecord {
+  id: string;
   date: string;
-  ct_amount: number;
-  cathay_amount: number;
-  taishin_amount: number;
-  mega_amount: number;
+  banks: { [key: string]: number };
   total: number;
   family: number;
   rent: number;
@@ -13,10 +11,7 @@ export interface ExpenseRecord {
 }
 
 export interface BankTotals {
-  ct: number;
-  cathay: number;
-  taishin: number;
-  mega: number;
+  [key: string]: number;
 }
 
 export interface Stats {
@@ -24,4 +19,9 @@ export interface Stats {
   avgSpent: number;
   bankTotals: BankTotals;
   maxMonth: ExpenseRecord | null;
+}
+
+export interface ProcessedData {
+  data: ExpenseRecord[];
+  bankNames: string[];
 }

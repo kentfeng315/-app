@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { CreditCard, Upload } from 'lucide-react';
+import { CreditCard, Upload, Plus } from 'lucide-react';
 import { ExpenseRecord, Stats } from './types';
 import { processCSV } from './services/dataProcessor';
-import { INITIAL_CSV_DATA } from './constants';
+import { INITIAL_CSV_DATA, INITIAL_BANK_NAMES } from './constants';
 import { Dashboard } from './components/Dashboard';
 import { TransactionList } from './components/TransactionList';
 
@@ -10,6 +10,7 @@ type Tab = 'dashboard' | 'list';
 
 export default function App() {
   const [data, setData] = useState<ExpenseRecord[]>(INITIAL_CSV_DATA);
+  const [bankNames, setBankNames] = useState<string[]>(INITIAL_BANK_NAMES);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,9 +21,10 @@ export default function App() {
     reader.onload = (e) => {
       const text = e.target?.result as string;
       if (text) {
-        const parsedData = processCSV(text);
+        const { data: parsedData, bankNames: parsedBanks } = processCSV(text);
         if (parsedData.length > 0) {
           setData(parsedData);
+          setBankNames(parsedBanks);
           alert(`成功匯入 ${parsedData.length} 筆資料！`);
         } else {
           alert("匯入失敗，請確認 CSV 格式。");
@@ -32,21 +34,62 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleCreateRecord = () => {
+    const newId = Math.random().toString(36).substring(2, 9);
+    // Initialize banks with 0
+    const initialBanks: {[key: string]: number} = {};
+    bankNames.forEach(name => initialBanks[name] = 0);
+
+    const newRecord: ExpenseRecord = {
+      id: newId,
+      date: '', // Invalid initially, user must edit
+      banks: initialBanks,
+      total: 0,
+      family: 0,
+      rent: 0,
+      periodic: 0,
+      extra: 0,
+      note: ''
+    };
+    
+    // Add to top
+    setData(prev => [newRecord, ...prev]);
+    // Switch to list view so user can edit it
+    setActiveTab('list');
+  };
+
+  const handleUpdateRecord = (updatedRecord: ExpenseRecord) => {
+    setData(prevData => prevData.map(item => 
+      item.id === updatedRecord.id ? updatedRecord : item
+    ));
+  };
+
+  const handleDeleteRecord = (id: string) => {
+    if (window.confirm('確定要刪除這筆紀錄嗎？')) {
+      setData(prevData => prevData.filter(item => item.id !== id));
+    }
+  };
+
   const stats: Stats = useMemo(() => {
     const totalSpent = data.reduce((acc, curr) => acc + curr.total, 0);
     const avgSpent = data.length > 0 ? totalSpent / data.length : 0;
     
-    const bankTotals = {
-      ct: data.reduce((acc, curr) => acc + curr.ct_amount, 0),
-      cathay: data.reduce((acc, curr) => acc + curr.cathay_amount, 0),
-      taishin: data.reduce((acc, curr) => acc + curr.taishin_amount, 0),
-      mega: data.reduce((acc, curr) => acc + curr.mega_amount, 0),
-    };
+    // Calculate totals for each bank dynamically
+    const bankTotals: {[key: string]: number} = {};
+    bankNames.forEach(name => bankTotals[name] = 0);
+    
+    data.forEach(record => {
+      Object.entries(record.banks).forEach(([bank, amount]) => {
+        if (bankTotals[bank] !== undefined) {
+          bankTotals[bank] += (amount as number);
+        }
+      });
+    });
 
     const maxMonth = data.reduce((prev, current) => (prev.total > current.total) ? prev : current, data[0] || null);
 
     return { totalSpent, avgSpent, bankTotals, maxMonth };
-  }, [data]);
+  }, [data, bankNames]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans selection:bg-blue-100 selection:text-blue-900">
@@ -93,22 +136,36 @@ export default function App() {
           <div>
             <h3 className="font-bold text-gray-800 text-lg">資料來源管理</h3>
             <p className="text-sm text-gray-500 mt-1">
-              目前使用 <span className="font-semibold text-gray-700">{data === INITIAL_CSV_DATA ? '系統預設' : '已上傳'}</span> 資料。若要分析新的月份，請上傳「總表.csv」。
+              目前使用 <span className="font-semibold text-gray-700">{data.length === 0 ? '無資料' : (data === INITIAL_CSV_DATA ? '系統預設' : '已上傳')}</span> 資料。
             </p>
           </div>
-          <label className="cursor-pointer bg-white hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-2 transition-all hover:shadow-md active:scale-95">
-            <Upload size={18} className="text-blue-600"/>
-            <span className="text-sm font-semibold">匯入 CSV 檔案</span>
-            <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
-          </label>
+          <div className="flex items-center gap-3">
+             <button 
+              onClick={handleCreateRecord}
+              className="bg-white hover:bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl border border-blue-200 shadow-sm flex items-center gap-2 transition-all hover:shadow-md active:scale-95"
+             >
+               <Plus size={18} />
+               <span className="text-sm font-semibold">新增單筆</span>
+             </button>
+            <label className="cursor-pointer bg-white hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-2 transition-all hover:shadow-md active:scale-95">
+              <Upload size={18} className="text-gray-600"/>
+              <span className="text-sm font-semibold">匯入 CSV 檔案</span>
+              <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
+            </label>
+          </div>
         </div>
 
         {/* Views */}
         <div className="transition-opacity duration-300 ease-in-out">
           {activeTab === 'dashboard' ? (
-            <Dashboard data={data} stats={stats} />
+            <Dashboard data={data} stats={stats} bankNames={bankNames} />
           ) : (
-            <TransactionList data={data} />
+            <TransactionList 
+              data={data} 
+              bankNames={bankNames}
+              onUpdate={handleUpdateRecord} 
+              onDelete={handleDeleteRecord} 
+            />
           )}
         </div>
       </main>
